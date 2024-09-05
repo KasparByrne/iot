@@ -1,16 +1,20 @@
 ##### Section 1: MQTT Topics #####
-BIKE_01_INCLINE_COMMAND = 'bike/000001/incline'
-BIKE_01_RESISTANCE_COMMAND = 'bike/000001/resistance'
+BIKE_01_INCLINE_COMMAND = 'bike/000001/incline/control'
+BIKE_01_RESISTANCE_COMMAND = 'bike/000001/resistance/control'
+BIKE_01_FAN_COMMAND = 'bike/000001/fan/control'
 BIKE_01_INCLINE_REPORT = 'bike/000001/incline/report'
 BIKE_01_RESISTANCE_REPORT = 'bike/000001/resistance/report'
+BIKE_01_FAN_REPORT = 'bike/000001/fan/report'
 BIKE_01_SPEED_REPORT = 'bike/000001/speed'
 BIKE_01_CADENCE_REPORT = 'bike/000001/cadence'
 BIKE_01_POWER_REPORT = 'bike/000001/power'
 
-BIKE_02_INCLINE_COMMAND = 'bike/000002/incline'
-BIKE_02_RESISTANCE_COMMAND = 'bike/000002/resistance'
+BIKE_02_INCLINE_COMMAND = 'bike/000002/incline/control'
+BIKE_02_RESISTANCE_COMMAND = 'bike/000002/resistance/control'
+BIKE_02_FAN_COMMAND = 'bike/000002/fan/control'
 BIKE_02_INCLINE_REPORT = 'bike/000002/incline/report'
 BIKE_02_RESISTANCE_REPORT = 'bike/000002/resistance/report'
+BIKE_02_FAN_REPORT = 'bike/000002/fan/report'
 BIKE_02_SPEED_REPORT = 'bike/000002/speed'
 BIKE_02_CADENCE_REPORT = 'bike/000002/cadence'
 BIKE_02_POWER_REPORT = 'bike/000002/power'
@@ -51,7 +55,7 @@ HEART_RATE_MEASUREMENT_UUID = 0X2A37
 # Fitness Machine Control Point Op Codes (more details in https://www.bluetooth.com/specifications/specs/fitness-machine-service-1-0)
 FTMS_REQUEST_CONTROL = 0x00
 FTMS_RESET = 0x01
-FTMS_SET_TARGET_SPEED = 0x02
+FTMS_SET_TARGET_FAN_SPEED = 0x02
 FTMS_SET_TARGET_INCLINATION = 0x03
 FTMS_SET_TARGET_RESISTANCE_LEVEL = 0x04
 FTMS_SET_TARGET_POWER = 0x05
@@ -99,6 +103,9 @@ RESISTANCE_MAX = 100 # 100% resistance
 INCLINE_MIN = -10 # -10% incline down
 INCLINE_FLAT = 0 # 0% incline flat
 INCLINE_MAX = 19 # 19% incline up
+
+FAN_MIN = 0
+FAN_MAX = 100
 
 MIN_BYTE_VALUE = 0
 MAX_BYTE_VALUE = 256

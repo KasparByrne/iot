@@ -15,7 +15,7 @@ root_folder = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__
 sys.path.append(root_folder)
 
 from lib.ble_helper import convert_incline_to_op_value, service_or_characteristic_found, service_or_characteristic_found_full_match, decode_int_bytes, covert_negative_value_to_valid_bytes
-from lib.constants import RESISTANCE_MIN, RESISTANCE_MAX, INCLINE_MIN, INCLINE_MAX, FAN_MIN, FAN_MAX, FTMS_UUID, FTMS_CONTROL_POINT_UUID, FTMS_REQUEST_CONTROL, FTMS_RESET, FTMS_SET_TARGET_RESISTANCE_LEVEL, INCLINE_REQUEST_CONTROL, INCLINE_CONTROL_OP_CODE, INCLINE_CONTROL_SERVICE_UUID, INCLINE_CONTROL_CHARACTERISTIC_UUID, INDOOR_BIKE_DATA_UUID, DEVICE_UNIT_NAMES, FTMS_SET_TARGET_FAN_SPEED
+from lib.constants import RESISTANCE_MIN, RESISTANCE_MAX, INCLINE_MIN, INCLINE_MAX, FTMS_UUID, RESISTANCE_LEVEL_RANGE_UUID, INCLINATION_RANGE_UUID, FTMS_CONTROL_POINT_UUID, FTMS_REQUEST_CONTROL, FTMS_RESET, FTMS_SET_TARGET_RESISTANCE_LEVEL, INCLINE_REQUEST_CONTROL, INCLINE_CONTROL_OP_CODE, INCLINE_CONTROL_SERVICE_UUID, INCLINE_CONTROL_CHARACTERISTIC_UUID, INDOOR_BIKE_DATA_UUID, DEVICE_UNIT_NAMES
 
 """
 TODO design testing of changes for
@@ -263,53 +263,26 @@ class WahooController(GATTInterface):
 class WahooDevice:
     """A virtual class for Wahoo devices"""
 
-    def __init__(self, name: str, controller: WahooController, command_topic: str, report_topic: str):
-        """
-        Create a Wahoo Device
-
-        Parameters
-        ----------
-        name : str 
-            Name of the device for logging. Will be automatically converted to all upper case.
-        controller : WahooController 
-            The WahooController object which will handle the device.
-        command_topic : str
-            MQTT topic used to control device. Should be passed using ArgumentParser.
-        report_topic : str
-            MQTT topic used for device to report current status. Should be passed using ArgumentParser.
-        """
+    def __init__(self, controller: WahooController, args):
 
         # device controller
         self.controller = controller
 
-        # device name for logging
-        self._name = name.upper()
+        # CLI parser arguments
+        self.args = args
 
         # command topic
-        self.command_topic = command_topic
-        self.controller.subscribe(self.command_topic)
+        self.command_topic = None
 
         # report topic
-        self.report_topic = report_topic
+        self.report_topic = None
 
         # device control point service & characteristic
         self.control_point_service = None
         self.control_point = None
 
-        # hold value while writing
-        self._internal_value = None # internal device value for tracking physical device value
-        self._new_internal_value = None # human readable value for logging
-        self._new_write_value = None # byte array value to be written to control point
-
-        # threading variables
+        # constants for threading
         self._TIMEOUT = 10
-        self.terminate_write = False
-        self.write_timeout_count = 0
-        self.write_thread = None
-
-        # log device status & info
-        logger.info(f'{self._name} initialised')
-        logger.debug(f'{self._name} command topic is {self.command_topic}')
 
     def set_control_point(self, service_or_characteristic):
         """Set UUID of passed service/characteristic if it is a required control point service/characteristic
@@ -323,10 +296,71 @@ class WahooDevice:
         To be implemented by subclass"""
         pass
 
-    # TODO: change this to report overall status of device
+    def control_point_response(self, characteristic, response_type: int, error = None):
+        """Handle responses from control point. Responses should be used for flow control of threading.
+        
+        To be implemented by subclass"""
+        pass
+
+class Climber(WahooDevice):
+    """Handles control of the KICKR Climb"""
+
+    def __init__(self, controller: WahooController, args):
+        super().__init__(controller,args)
+
+        # device variable
+        self._incline = 0
+        self._new_incline = None
+
+        # command topic
+        self.command_topic = self.args.incline_command_topic
+        logger.debug(f'CLIMBER command topic is {self.command_topic}')
+        self.controller.subscribe(self.command_topic)
+
+        # report topic
+        self.report_topic = self.args.incline_report_topic
+
+        # threading
+        self.terminate_write = False
+        self.write_timeout_count = 0
+        self.write_thread = None
+
+        logger.info('CLIMBER initialised')
+
+    def set_control_point(self, service_or_characteristic):
+        
+        # find the custom KICKR climb control point service & characteristic
+        if service_or_characteristic_found_full_match(INCLINE_CONTROL_SERVICE_UUID, service_or_characteristic.uuid):
+            self.control_point_service = service_or_characteristic
+            logger.info('CLIMBER service found')
+        elif service_or_characteristic_found_full_match(INCLINE_CONTROL_CHARACTERISTIC_UUID, service_or_characteristic.uuid):
+            self.control_point = service_or_characteristic
+            logger.info('CLIMBER characteristic found')
+            # TODO: check whether this requires that the FTMS control point has already successfully been requested control of
+            self.control_point.enable_notifications() 
+
+    def on_message(self, msg):
+        """Receive MQTT messages"""
+        
+        # check if it is the incline topic
+        if bool(re.search("/incline", msg.topic, re.IGNORECASE)):
+
+            logger.info('CLIMBER MQTT message received')
+
+            # convert, validate, and write the new value
+            value = str(msg.payload, 'utf-8')
+            if bool(re.search("[-+]?\d+$", value)):
+                value = float(value)
+                if INCLINE_MIN <= value <= INCLINE_MAX and value % 0.5 == 0:
+                    self.incline_write(value)
+                else:
+                    logger.debug(f'INCLINE MQTT COMMAND FAIL : value must be in range 19 to -10 with 0.5 resolution : {value}')
+            else:
+                logger.debug(f'INCLINE MQTT COMMAND FAIL : non-numeric value sent : {value}')
+
     def report(self):
-        """Report a successful value write"""
-        payload = self.controller.mqtt_data_report_payload(self._name,self._internal_value)
+        """Report a successful incline write"""
+        payload = self.controller.mqtt_data_report_payload('incline',self._incline)
         self.controller.publish(self.report_topic,payload)
 
     def control_point_response(self, characteristic, response_type: int, error = None):
@@ -335,37 +369,35 @@ class WahooDevice:
         # if the response is not from the relevant control point then return
         if characteristic.uuid != self.control_point.uuid: return
 
-        # on successful write terminate the thread and update the internal device value
+        # on successful write terminate the thread and update the internal incline value
         if response_type == WRITE_SUCCESS: 
             # TODO: LOCK this property at start of method
             self.terminate_write = True
-            self._internal_value = self._new_internal_value
-
-            # report & log a successful write
+            self._incline = self._new_incline
             self.report()
-            logger.debug(f'{self._name} WRITE SUCCESS: {self._new_internal_value}') 
+            logger.debug(f'INCLINE WRITE SUCCESS: {self._incline}')
         
         # on failed write try writing again until timeout
         elif response_type == WRITE_FAIL:
             self.write_timeout_count += 1
             self.write_thread.start()
-            logger.debug(f'{self._name} WRITE FAILED: {self._new_internal_value}')
+            logger.debug(f'INCLINE WRITE FAILED: {self._new_incline}')
 
         # TODO: Add check that we are notifying the correct characteristic - handling error responses
         # on successful enabling of notification on control point log
         elif response_type == NOTIFICATION_SUCCESS:
-            logger.debug(f'{self._name} NOTIFICATION SUCCESS')
+            logger.debug('INCLINE NOTIFICATION SUCCESS')
 
         # on fail to enable notification on control point try again
         elif response_type == NOTIFICATION_FAIL:
-            logger.debug(f'{self._name} NOTIFICATION FAILED')
+            logger.debug('INCLINE NOTIFICATION FAILED')
             self.control_point.enable_notifications() 
 
-    def write_value(self,val):
-        """Try to write a new device value until timeout, success or recieve new value to be written"""
+    def incline_write(self,val):
+        """Try to write a new incline value until timeout, success or new value to be written"""
 
         # define the new value internally
-        self._new_write_value = val
+        self._new_incline = val
 
         # terminate any current threads
         # TODO: LOCK this property at start of method
@@ -375,62 +407,41 @@ class WahooDevice:
         # setup & start new thread
         self.terminate_write = False
         self.write_timeout_count = 0
-        self.write_thread = threading.Thread(name=f'{self._name}_write',target=self.write_process)
+        self.write_thread = threading.Thread(name='write_new_incline',target=self.write_new_incline)
         self.write_thread.start()
         
-    def write_process(self):
-        """Attempt to write the new device value until successful or forced to terminate"""
+    def write_new_incline(self):
+        """Attempt to write the new incline value until successful or forced to terminate"""
 
         # write the new value until termination or timeout
         if not (self.terminate_write and self.write_timeout_count >= self._TIMEOUT):
-            self.control_point.write_value(self._new_write_value)
-
-class Climber(WahooDevice):
-    """Handles control of the KICKR Climb"""
-
-    def __init__(self, controller: WahooController, args):
-        super().__init__('CLIMBER',controller,self.args.incline_command_topic,self.args.incline_report_topic)
-
-    def set_control_point(self, service_or_characteristic):
-        
-        # find the custom KICKR climb control point service & characteristic
-        if service_or_characteristic_found_full_match(INCLINE_CONTROL_SERVICE_UUID, service_or_characteristic.uuid):
-            self.control_point_service = service_or_characteristic
-            logger.debug(f'{self._name} service found')
-
-        elif service_or_characteristic_found_full_match(INCLINE_CONTROL_CHARACTERISTIC_UUID, service_or_characteristic.uuid):
-            self.control_point = service_or_characteristic
-            logger.debug(f'{self._name} characteristic found')
-            self.control_point.enable_notifications() 
-
-    def on_message(self, msg):
-        """Receive MQTT messages"""
-        
-        # check if it is the incline topic
-        if bool(re.search("/incline", msg.topic, re.IGNORECASE)):
-
-            logger.info(f'{self._name} MQTT message received')
-
-            # convert, validate, and write the new value
-            value = str(msg.payload, 'utf-8')
-            if bool(re.search("[-+]?\d+$", value)):
-                value = float(value)
-                if INCLINE_MIN <= value <= INCLINE_MAX and value % 0.5 == 0:
-                    self._new_internal_value = value
-                    self.write_value(bytearray([INCLINE_CONTROL_OP_CODE] + convert_incline_to_op_value(self._new_internal_value)))
-                else:
-                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 19 to -10 with 0.5 resolution : {value}')
-                    # TODO: report error
-            else:
-                logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
-                # TODO: report error
+            self.control_point.write_value(bytearray([INCLINE_CONTROL_OP_CODE] + convert_incline_to_op_value(self._new_incline)))
 
 
 class Resistance(WahooDevice):
     """Handles control of the Resistance aspect of the KICKR Smart Trainer"""
 
     def __init__(self, controller: WahooController, args):
-        super().__init__('Resistance',controller,self.args.resistance_command_topic,self.args.resistance_report_topic)
+        super().__init__(controller,args)
+
+        # device variable
+        self._resistance = 0
+        self._new_resistance = 0
+
+        # command topic
+        self.command_topic = self.args.resistance_command_topic
+        logger.info(f'RESISTANCE command topic if {self.command_topic}')
+        self.controller.subscribe(self.command_topic)
+
+        # report topic
+        self.report_topic = self.args.resistance_report_topic
+
+        # threading
+        self.terminate_write = False
+        self.write_timeout_count = 0
+        self.write_thread = None
+
+        logger.info('RESISTANCE initialised')
 
     def set_control_point(self, service_or_characteristic):
 
@@ -440,58 +451,32 @@ class Resistance(WahooDevice):
     
     def on_message(self, msg):
         """Receive MQTT messages"""
+        pass
 
-        # check if it is the resistance topic
-        if bool(re.search("/resistance", msg.topic, re.IGNORECASE)):
+    # =========================================
 
-            logger.info(f'{self._name} MQTT message received')
+    # TODO: add response reactions to Resistance class
+    """def characteristic_write_value_succeeded(self, characteristic):
 
-            # convert, validate, and write the new value
-            value = str(msg.payload, 'utf-8')
-            if bool(re.search("[-+]?\d+$", value)):
-                value = float(value)
-                if RESISTANCE_MIN <= value <= RESISTANCE_MAX and value % 0.1 == 0:
-                    self._new_internal_value = value
-                    self.write_value(bytearray([FTMS_SET_TARGET_RESISTANCE_LEVEL, self._new_internal_value]))
-                else:
-                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 0 to 100 with 0.1 resolution : {value}')
-                    # TODO: report error
-            else:
-                logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
-                # TODO: report error
+        # set new resistance or inclination and notify to MQTT if the async write value action is succeeded
+        if service_or_characteristic_found(FTMS_CONTROL_POINT_UUID, characteristic.uuid):
+            if self.new_resistance is not None:
+                self.set_new_resistance()"""
+    
+    # ==========================================
 
-
-# TODO: fan driver just writes values and hopes. Need to investigate fan for correct values - use bluetoothctl GATT operations
 class HeadwindFan(WahooDevice):
     """Handles control of the KICKR Headwind Smart Bluetooth Fan"""
 
     def __init__(self, controller: WahooController, args):
-        super().__init__('Fan',controller,self.args.fan_command_topic,self.args.fan_report_topic)
-
-    def set_control_point(self, service_or_characteristic):
-        pass
+        super().__init__(controller,args)
+        
+        # device variable
+        self._fan_power = 0
 
     def on_message(self, msg):
-        """This needs fixing """
-            
-        # check if it is the fan topic
-        if bool(re.search("/fan", msg.topic, re.IGNORECASE)):
-
-            logger.info(f'{self._name} MQTT message received')
-
-            # convert, validate, and write the new value
-            value = str(msg.payload, 'utf-8')
-            if bool(re.search("[-+]?\d+$", value)):
-                value = float(value)
-                if FAN_MIN <= value <= FAN_MAX and value % 1 == 0: # FIXME: replace 1 with correct resolution value
-                    self._new_internal_value = value
-                    self.write_value(bytearray([0x02, self._new_internal_value])) # FIXME: replace 0x02 with a value we are sure is correct
-                else:
-                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 0 to 100 with UNKNOWN resolution : {value}') # FIXME: replace UNKNOWN with correct value
-                    # TODO: report error
-            else:
-                logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
-                # TODO: report error
+        """Receive MQTT messages"""
+        pass
 
 """
 Class to handle data from Wahoo devices. All data is streamed through the KICKR smart trainer so best handled by a single class.

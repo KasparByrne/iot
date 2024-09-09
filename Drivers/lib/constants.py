@@ -94,6 +94,7 @@ INCLINE_CONTROL_INCREMENT_UNIT = 50 # the incline value is up or down by 50 unit
 BIKE_01_KICKR_TRAINER_ADDRESS = "d9:07:e8:1c:db:94"
 BIKE_01_KICKR_CLIMB_ADDRESS = "cf:5c:f0:0d:c7:68"
 BIKE_01_HEADWIND_ADDRESS = "ed:cb:f5:da:d3:f5"
+BIKE_01_TICKR_HEARTRATE_ADDRESS = "ec:b2:8a:26:85:c5"
 
 ##### Section 4: Other Constants #####
 # TODO: set the correct resistance and inclination range values once we've got the real Wahoo device data
@@ -118,4 +119,6 @@ DEVICE_UNIT_NAMES = {
   "resistance": "percentage",
   "incline": "degree",
   "headWind": "percentage"
+  "climber": "degree",
+  "fan": "percentage"
 }

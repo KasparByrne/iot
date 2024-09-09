@@ -58,6 +58,25 @@ logger.addHandler(logger_stream_handler)
 # define Control Point response type constants
 WRITE_SUCCESS, WRITE_FAIL, NOTIFICATION_SUCCESS, NOTIFICATION_FAIL = range(4)
 
+# ======== GATT Device Manager Class ========
+
+# FIXME: make this compatible with all devices
+# TODO: find a better method - maybe just note the MAC address (dah)
+#       This method requires initialising the device inside the manager which seems to be an unintended use for the manager
+#       Just create some MAC address discovery script instead and the MAC addresses can be hardcoded.
+"""class WahooManager(gatt.DeviceManager):
+    # Subclass gatt.DeviceManager to allow discovery only of HEADWIND devices
+    # When the alias begins with the required prefix, connect to the device
+    def device_discovered(self, device):
+        alias = device.alias()
+        if alias is not None and self.prefix is not None and len(alias) >= len(self.prefix) and alias[0:len(self.prefix)] == self.prefix:
+            #print("[%s] Discovered, alias = %s" % (device.mac_address, device.alias()))
+            device = AnyDevice(mac_address=device.mac_address, manager=self)
+            device.connect()
+            device.zero_limit = 10
+            device.zeroCount = 0
+            self.stop_discovery()"""
+
 # ======== GATT Interface Class ========
 
 class GATTInterface(gatt.Device):
@@ -326,11 +345,14 @@ class WahooDevice:
     # TODO: change this to report overall status of device
     def report(self):
         """Report a successful value write"""
-        payload = self.controller.mqtt_data_report_payload(self._name,self._internal_value)
+        payload = self.controller.mqtt_data_report_payload(self._name.lower(),self._internal_value)
         self.controller.publish(self.report_topic,payload)
 
     def control_point_response(self, characteristic, response_type: int, error = None):
         """Handle responses from the control point"""
+
+        # return if the device's control point has not been set
+        if self.control_point is None: return
 
         # if the response is not from the relevant control point then return
         if characteristic.uuid != self.control_point.uuid: return
@@ -389,7 +411,7 @@ class Climber(WahooDevice):
     """Handles control of the KICKR Climb"""
 
     def __init__(self, controller: WahooController, args):
-        super().__init__('CLIMBER',controller,self.args.incline_command_topic,self.args.incline_report_topic)
+        super().__init__('CLIMBER',controller,args.incline_command_topic,args.incline_report_topic)
 
     def set_control_point(self, service_or_characteristic):
         
@@ -410,10 +432,21 @@ class Climber(WahooDevice):
         if bool(re.search("/incline", msg.topic, re.IGNORECASE)):
 
             logger.info(f'{self._name} MQTT message received')
+            logger.debug(f'Received Climber Message: {msg}')
 
             # convert, validate, and write the new value
             value = str(msg.payload, 'utf-8')
-            if bool(re.search("[-+]?\d+$", value)):
+
+            # TODO: add error checking and reporting for converting from str to dict
+            value = json.loads(value)
+            value = value['incline']
+            if INCLINE_MIN <= value <= INCLINE_MAX and value % 0.5 == 0:
+                self._new_internal_value = value
+                self.write_value(bytearray([INCLINE_CONTROL_OP_CODE] + convert_incline_to_op_value(self._new_internal_value)))
+            else:
+                logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 19 to -10 with 0.5 resolution : {value}')
+                # TODO: report error
+"""            if bool(re.search("[-+]?\d+$", value)):
                 value = float(value)
                 if INCLINE_MIN <= value <= INCLINE_MAX and value % 0.5 == 0:
                     self._new_internal_value = value
@@ -423,14 +456,14 @@ class Climber(WahooDevice):
                     # TODO: report error
             else:
                 logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
-                # TODO: report error
+                # TODO: report error"""
 
 
 class Resistance(WahooDevice):
     """Handles control of the Resistance aspect of the KICKR Smart Trainer"""
 
     def __init__(self, controller: WahooController, args):
-        super().__init__('Resistance',controller,self.args.resistance_command_topic,self.args.resistance_report_topic)
+        super().__init__('Resistance',controller,args.resistance_command_topic,args.resistance_report_topic)
 
     def set_control_point(self, service_or_characteristic):
 
@@ -450,11 +483,11 @@ class Resistance(WahooDevice):
             value = str(msg.payload, 'utf-8')
             if bool(re.search("[-+]?\d+$", value)):
                 value = float(value)
-                if RESISTANCE_MIN <= value <= RESISTANCE_MAX and value % 0.1 == 0:
+                if RESISTANCE_MIN <= value <= RESISTANCE_MAX:
                     self._new_internal_value = value
-                    self.write_value(bytearray([FTMS_SET_TARGET_RESISTANCE_LEVEL, self._new_internal_value]))
+                    self.write_value(bytearray([FTMS_SET_TARGET_RESISTANCE_LEVEL, int(self._new_internal_value)])) # FIXME: Should be able to write as a float but temp rounding to int
                 else:
-                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 0 to 100 with 0.1 resolution : {value}')
+                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be an integer between 0 and 100 : {value}')
                     # TODO: report error
             else:
                 logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
@@ -466,7 +499,7 @@ class HeadwindFan(WahooDevice):
     """Handles control of the KICKR Headwind Smart Bluetooth Fan"""
 
     def __init__(self, controller: WahooController, args):
-        super().__init__('Fan',controller,self.args.fan_command_topic,self.args.fan_report_topic)
+        super().__init__('Fan',controller,args.fan_command_topic,args.fan_report_topic)
 
     def set_control_point(self, service_or_characteristic):
         pass

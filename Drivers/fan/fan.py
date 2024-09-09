@@ -65,6 +65,7 @@ class AnyDeviceManager(gatt.DeviceManager):
 			self.stop_discovery()
 			global device
 			device = dev
+			print(f'Fan MAC ADDRESS: {device.mac_address}')
 
 
 # Send a given value to the fan through Bluetooth
@@ -205,7 +206,7 @@ class AnyDevice(gatt.Device):
 					else:
 						self.zeroCount = 0
 					reported_speed = value[2]
-					topic = f"bike/{deviceId}/fan"
+					topic = f"bike/{deviceId}/fan/report"
 					payload = self.mqtt_data_report_payload(reported_speed)				
 					mqtt_client.publish(topic, payload)
 					print(f"Published speed: {reported_speed}")
@@ -225,7 +226,7 @@ def main():
 			os.getenv('MQTT_USERNAME'), os.getenv('MQTT_PASSWORD'))
 		mqtt_client.setup_mqtt_client()
 		deviceId = os.getenv('DEVICE_ID')
-		topic = f'bike/{deviceId}/speed'
+		topic = f'bike/{deviceId}/fan/control'
 		mqtt_client.subscribe(topic)
 		mqtt_client.get_client().on_message = message
 		mqtt_client.get_client().on_publish = publish

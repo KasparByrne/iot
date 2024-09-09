@@ -9,28 +9,28 @@ from wahoo_controller import WahooController
 root_folder = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(root_folder)
 
-from lib.constants import BIKE_01_INCLINE_COMMAND, BIKE_01_RESISTANCE_COMMAND, BIKE_01_INCLINE_REPORT, BIKE_01_RESISTANCE_REPORT, BIKE_01_SPEED_REPORT, BIKE_01_CADENCE_REPORT, BIKE_01_POWER_REPORT, BIKE_01_FAN_COMMAND, BIKE_01_FAN_REPORT
-
 # define CLI parse arguments
-parser = ArgumentParser(description="Wahoo Kickr Incline and Resistance Control")
+parser = ArgumentParser(description="Wahoo Device Controller")
 
 # BLE connection params
-parser.add_argument('--mac_address', dest='mac_address', type=str, help="The Wahoo Kickr BLE Device's unique mac address")
+parser.add_argument('--mac_address', dest='mac_address', type=str, help="The Wahoo Kickr BLE Device's unique mac address", default=os.getenv('KICKR_MAC_ADDRESS'))
 
-# HiveMQ connection params
-parser.add_argument('--broker_address', dest='broker_address', type=str, help='The MQTT broker address getting from HiveMQ Cloud')
-parser.add_argument('--username', dest='username', type=str, help='HiveMQ Cloud username')
-parser.add_argument('--password', dest='password', type=str, help='HiveMQ Cloud password')
+# MQTT connection params
+parser.add_argument('--broker_address', dest='broker_address', type=str, help='The MQTT broker address', default=os.getenv('MQTT_HOSTNAME'))
+parser.add_argument('--username', dest='username', type=str, help='username', default=os.getenv('MQTT_USERNAME'))
+parser.add_argument('--password', dest='password', type=str, help='password', default=os.getenv('MQTT_PASSWORD'))
 
-parser.add_argument('--incline_command_topic', dest='incline_command_topic', type=str, help='a MQTT topic that will send incline control commands to this driver', default=BIKE_01_INCLINE_COMMAND)
-parser.add_argument('--incline_report_topic', dest='incline_report_topic', type=str, help='a MQTT topic that will receieve the current incline levels data from this driver', default=BIKE_01_INCLINE_REPORT)
-parser.add_argument('--resistance_command_topic', dest='resistance_command_topic', type=str, help='a MQTT topic that will send resistance control commands to this driver', default=BIKE_01_RESISTANCE_COMMAND)
-parser.add_argument('--resistance_report_topic', dest='resistance_report_topic', type=str, help='a MQTT topic that will receieve the current resistance levels data from this driver', default=BIKE_01_RESISTANCE_REPORT)
-parser.add_argument('--fan_command_topic', dest='fan_command_topic', type=str, help='a MQTT topic that will send fan control commands to this driver', default=BIKE_01_FAN_COMMAND)
-parser.add_argument('--fan_report_topic', dest='fan_report_topic', type=str, help='a MQTT topic that will receieve the current incline or resistance levels data from this driver', default=BIKE_01_FAN_REPORT)
-parser.add_argument('--speed_report_topic', dest='speed_report_topic', type=str, help='a MQTT topic that will receive the current instantaneous speed data in m/s from this driver', default=BIKE_01_SPEED_REPORT)
-parser.add_argument('--cadence_report_topic', dest='cadence_report_topic', type=str, help='a MQTT topic that will receive the current instantaneous cadence data in rpm from this driver', default=BIKE_01_CADENCE_REPORT)
-parser.add_argument('--power_report_topic', dest='power_report_topic', type=str, help='a MQTT topic that will receive the current instantaneous power data in W from this driver', default=BIKE_01_POWER_REPORT)
+DEVICE_ID = os.getenv('DEVICE_ID')
+
+parser.add_argument('--incline_command_topic', dest='incline_command_topic', type=str, help='a MQTT topic that will send incline control commands to this driver', default=f'bike/{DEVICE_ID}/incline/control')
+parser.add_argument('--incline_report_topic', dest='incline_report_topic', type=str, help='a MQTT topic that will receieve the current incline levels data from this driver', default=f'bike/{DEVICE_ID}/incline/report')
+parser.add_argument('--resistance_command_topic', dest='resistance_command_topic', type=str, help='a MQTT topic that will send resistance control commands to this driver', default=f'bike/{DEVICE_ID}/resistance/control')
+parser.add_argument('--resistance_report_topic', dest='resistance_report_topic', type=str, help='a MQTT topic that will receieve the current resistance levels data from this driver', default=f'bike/{DEVICE_ID}/resistance/report')
+parser.add_argument('--fan_command_topic', dest='fan_command_topic', type=str, help='a MQTT topic that will send fan control commands to this driver', default=f'bike/{DEVICE_ID}/fan/control')
+parser.add_argument('--fan_report_topic', dest='fan_report_topic', type=str, help='a MQTT topic that will receieve the current incline or resistance levels data from this driver', default=f'bike/{DEVICE_ID}/fan/report')
+parser.add_argument('--speed_report_topic', dest='speed_report_topic', type=str, help='a MQTT topic that will receive the current instantaneous speed data in m/s from this driver', default=f'bike/{DEVICE_ID}/speed')
+parser.add_argument('--cadence_report_topic', dest='cadence_report_topic', type=str, help='a MQTT topic that will receive the current instantaneous cadence data in rpm from this driver', default=f'bike/{DEVICE_ID}/cadence')
+parser.add_argument('--power_report_topic', dest='power_report_topic', type=str, help='a MQTT topic that will receive the current instantaneous power data in W from this driver', default=f'bike/{DEVICE_ID}/power')
 
 args = parser.parse_args()
 

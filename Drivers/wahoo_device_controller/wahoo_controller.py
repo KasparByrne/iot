@@ -444,19 +444,9 @@ class Climber(WahooDevice):
                 self._new_internal_value = value
                 self.write_value(bytearray([INCLINE_CONTROL_OP_CODE] + convert_incline_to_op_value(self._new_internal_value)))
             else:
-                logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 19 to -10 with 0.5 resolution : {value}')
+                logger.info(f'{self._name} MQTT COMMAND FAIL : value must be in range 19 to -10 with 0.5 resolution : {value}')
                 # TODO: report error
-"""            if bool(re.search("[-+]?\d+$", value)):
-                value = float(value)
-                if INCLINE_MIN <= value <= INCLINE_MAX and value % 0.5 == 0:
-                    self._new_internal_value = value
-                    self.write_value(bytearray([INCLINE_CONTROL_OP_CODE] + convert_incline_to_op_value(self._new_internal_value)))
-                else:
-                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 19 to -10 with 0.5 resolution : {value}')
-                    # TODO: report error
-            else:
-                logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
-                # TODO: report error"""
+            # TODO: check and report other errors like wrong value type
 
 
 class Resistance(WahooDevice):
@@ -481,16 +471,15 @@ class Resistance(WahooDevice):
 
             # convert, validate, and write the new value
             value = str(msg.payload, 'utf-8')
-            if bool(re.search("[-+]?\d+$", value)):
-                value = float(value)
-                if RESISTANCE_MIN <= value <= RESISTANCE_MAX:
-                    self._new_internal_value = value
-                    self.write_value(bytearray([FTMS_SET_TARGET_RESISTANCE_LEVEL, int(self._new_internal_value)])) # FIXME: Should be able to write as a float but temp rounding to int
-                else:
-                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be an integer between 0 and 100 : {value}')
-                    # TODO: report error
+
+            # TODO: add error checking and reporting for converting from str to dict
+            value = json.loads(value)
+            value = float(value['resistance'])
+            if RESISTANCE_MIN <= value <= RESISTANCE_MAX:
+                self._new_internal_value = value
+                self.write_value(bytearray([FTMS_SET_TARGET_RESISTANCE_LEVEL, int(self._new_internal_value)])) # FIXME: Should be able to write as a float but temp rounding to int
             else:
-                logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
+                logger.info(f'{self._name} MQTT COMMAND FAIL : value must be an integer between 0 and 100 : {value}')
                 # TODO: report error
 
 
@@ -514,16 +503,15 @@ class HeadwindFan(WahooDevice):
 
             # convert, validate, and write the new value
             value = str(msg.payload, 'utf-8')
-            if bool(re.search("[-+]?\d+$", value)):
-                value = float(value)
-                if FAN_MIN <= value <= FAN_MAX and value % 1 == 0: # FIXME: replace 1 with correct resolution value
-                    self._new_internal_value = value
-                    self.write_value(bytearray([0x02, self._new_internal_value])) # FIXME: replace 0x02 with a value we are sure is correct
-                else:
-                    logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 0 to 100 with UNKNOWN resolution : {value}') # FIXME: replace UNKNOWN with correct value
-                    # TODO: report error
+
+            # TODO: add error checking and reporting for converting from str to dict
+            value = json.loads(value)
+            value = int(value['power'])
+            if FAN_MIN <= value <= FAN_MAX and value % 1 == 0: # FIXME: replace 1 with correct resolution value
+                self._new_internal_value = value
+                self.write_value(bytearray([0x02, self._new_internal_value])) # FIXME: replace 0x02 with a value we are sure is correct
             else:
-                logger.debug(f'{self._name} MQTT COMMAND FAIL : non-numeric value sent : {value}')
+                logger.debug(f'{self._name} MQTT COMMAND FAIL : value must be in range 0 to 100 with UNKNOWN resolution : {value}') # FIXME: replace UNKNOWN with correct value
                 # TODO: report error
 
 """

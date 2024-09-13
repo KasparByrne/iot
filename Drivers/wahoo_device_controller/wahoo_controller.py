@@ -14,6 +14,7 @@ import logging
 root_folder = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(root_folder)
 
+from lib.mqtt_client import MQTTClient
 from lib.ble_helper import convert_incline_to_op_value, service_or_characteristic_found, service_or_characteristic_found_full_match, decode_int_bytes, covert_negative_value_to_valid_bytes
 from lib.constants import RESISTANCE_MIN, RESISTANCE_MAX, INCLINE_MIN, INCLINE_MAX, FAN_MIN, FAN_MAX, FTMS_UUID, FTMS_CONTROL_POINT_UUID, FTMS_REQUEST_CONTROL, FTMS_RESET, FTMS_SET_TARGET_RESISTANCE_LEVEL, INCLINE_REQUEST_CONTROL, INCLINE_CONTROL_OP_CODE, INCLINE_CONTROL_SERVICE_UUID, INCLINE_CONTROL_CHARACTERISTIC_UUID, INDOOR_BIKE_DATA_UUID, DEVICE_UNIT_NAMES, FTMS_SET_TARGET_FAN_SPEED
 
@@ -76,6 +77,16 @@ WRITE_SUCCESS, WRITE_FAIL, NOTIFICATION_SUCCESS, NOTIFICATION_FAIL = range(4)
             device.zero_limit = 10
             device.zeroCount = 0
             self.stop_discovery()"""
+
+# extend on_message method to pass messages to device
+class MQTTClientWithSendingFTMSCommands(MQTTClient):
+    def __init__(self, broker_address, username, password, device):
+        super().__init__(broker_address, username, password)
+        self.device = device
+
+    def on_message(self, client, userdata, msg):
+        super().on_message(client,userdata, msg)
+        self.device.on_message(msg)
 
 # ======== GATT Interface Class ========
 

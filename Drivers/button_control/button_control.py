@@ -20,10 +20,7 @@ import logging
 root_folder = os.path.abspath(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(root_folder)
 
-# append lib folder to path & import mqtt client
-lib_folder = 'iot/Drivers/lib'
-sys.path.append(lib_folder)
-from mqtt_client import MQTTClient
+from lib.mqtt_client import MQTTClient
 
 # set up logging
 logger = logging.getLogger(__name__)

@@ -64,7 +64,7 @@ class Button():
         self._client = client
         self._state = 0
         self._topic = args.button_topic 
-        self._control_topic = args.button_topic + '/control'
+        self._control_topic = args.button_topic + '/report'
 
         # set up pin & callbacks
         GPIO.setup(self._pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)

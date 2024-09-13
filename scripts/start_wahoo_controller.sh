@@ -1,0 +1,3 @@
+source ~/.env
+
+python3 ~/iot/Drivers/wahoo_device_controller/wahoo_controller_starter.py # --mac_address ${KICKR_MAC_ADDRESS} --broker_address ${MQTT_HOSTNAME} --username ${MQTT_USERNAME} --password ${MQTT_PASSWORD} --resistance_command_topic bike/${DEVICE_ID}/resistance/control --resistance_report_topic bike/${DEVICE_ID}/resistance/report --incline_command_topic bike/${DEVICE_ID}/incline/control --incline_report_topic bike/${DEVICE_ID}/incline/report --fan_command_topic bike/${DEVICE_ID}/fan/control --fan_report_topic bike/${DEVICE_ID}/fan/report  --speed_report_topic bike/${DEVICE_ID}/speed --cadence_report_topic bike/${DEVICE_ID}/cadence --power_report_topic bike/${DEVICE_ID}/power

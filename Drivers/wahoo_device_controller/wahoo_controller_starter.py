@@ -19,6 +19,7 @@ parser.add_argument('--mac_address', dest='mac_address', type=str, help="The Wah
 parser.add_argument('--broker_address', dest='broker_address', type=str, help='The MQTT broker address', default=os.getenv('MQTT_HOSTNAME'))
 parser.add_argument('--username', dest='username', type=str, help='username', default=os.getenv('MQTT_USERNAME'))
 parser.add_argument('--password', dest='password', type=str, help='password', default=os.getenv('MQTT_PASSWORD'))
+parser.add_argument('--port', dest='port', type=int, help='port', default=os.getenv('MQTT_PORT'))
 
 DEVICE_ID = os.getenv('DEVICE_ID')
 

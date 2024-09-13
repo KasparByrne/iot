@@ -7,7 +7,6 @@ import platform
 import json
 import time
 from time import sleep
-from mqtt_custom_client import MQTTClientWithSendingFTMSCommands
 import threading
 import logging
 
@@ -44,7 +43,7 @@ TODO merge other Wahoo devices
 # setup logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 logger_formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 
@@ -80,8 +79,8 @@ WRITE_SUCCESS, WRITE_FAIL, NOTIFICATION_SUCCESS, NOTIFICATION_FAIL = range(4)
 
 # extend on_message method to pass messages to device
 class MQTTClientWithSendingFTMSCommands(MQTTClient):
-    def __init__(self, broker_address, username, password, device):
-        super().__init__(broker_address, username, password)
+    def __init__(self, broker_address, username, password, device, port=1883):
+        super().__init__(broker_address, username, password, port=port)
         self.device = device
 
     def on_message(self, client, userdata, msg):
@@ -200,7 +199,7 @@ class WahooController(GATTInterface):
     # ===== MQTT methods =====
     
     def setup_mqtt_client(self):
-        self.mqtt_client = MQTTClientWithSendingFTMSCommands(self.args.broker_address, self.args.username, self.args.password, self)
+        self.mqtt_client = MQTTClientWithSendingFTMSCommands(self.args.broker_address, self.args.username, self.args.password, self, port=self.args.port)
         self.mqtt_client.setup_mqtt_client()
     
     def on_message(self, msg):
@@ -607,96 +606,94 @@ class WahooData:
         if self.flag_instantaneous_speed:
             self.instantaneous_speed = float((value[offset+1] << 8) + value[offset]) / 100.0 * 5.0 / 18.0
             offset += 2
-            logger.info(f"Instantaneous Speed: {self.instantaneous_speed} m/s")
+            logger.debug(f"Instantaneous Speed: {self.instantaneous_speed} m/s")
 
         if self.flag_average_speed:
             self.average_speed = float((value[offset+1] << 8) + value[offset]) / 100.0 * 5.0 / 18.0
             offset += 2
-            logger.info(f"Average Speed: {self.average_speed} m/s")
+            logger.debug(f"Average Speed: {self.average_speed} m/s")
 
         if self.flag_instantaneous_cadence:
             self.instantaneous_cadence = float((value[offset+1] << 8) + value[offset]) / 10.0
             offset += 2
-            logger.info(f"Instantaneous Cadence: {self.instantaneous_cadence} rpm")
+            logger.debug(f"Instantaneous Cadence: {self.instantaneous_cadence} rpm")
 
         if self.flag_average_cadence:
             self.average_cadence = float((value[offset+1] << 8) + value[offset]) / 10.0
             offset += 2
-            logger.info(f"Average Cadence: {self.average_cadence} rpm")
+            logger.debug(f"Average Cadence: {self.average_cadence} rpm")
 
         if self.flag_total_distance:
             self.total_distance = int((value[offset+2] << 16) + (value[offset+1] << 8) + value[offset])
             offset += 3
-            logger.info(f"Total Distance: {self.total_distance} m")
+            logger.debug(f"Total Distance: {self.total_distance} m")
 
         if self.flag_resistance_level:
            self.resistance_level = int((value[offset+1] << 8) + value[offset])
            offset += 2
-           logger.info(f"Resistance Level: {self.resistance_level}")
+           logger.debug(f"Resistance Level: {self.resistance_level}")
 
         if self.flag_instantaneous_power:
             self.instantaneous_power = int((value[offset+1] << 8) + value[offset])
             offset += 2
-            logger.info(f"Instantaneous Power: {self.instantaneous_power} W")
+            logger.debug(f"Instantaneous Power: {self.instantaneous_power} W")
 
         if self.flag_average_power:
             self.average_power = int((value[offset+1] << 8) + value[offset])
             offset += 2
-            logger.info(f"Average Power: {self.average_power} W")
+            logger.debug(f"Average Power: {self.average_power} W")
 
         if self.flag_expended_energy:
             expended_energy_total = int((value[offset+1] << 8) + value[offset])
             offset += 2
             if expended_energy_total != 0xFFFF:
                 self.expended_energy_total = expended_energy_total
-                logger.info(f"Expended Energy: {self.expended_energy_total} kCal total")
+                logger.debug(f"Expended Energy: {self.expended_energy_total} kCal total")
 
             expended_energy_per_hour = int((value[offset+1] << 8) + value[offset])
             offset += 2
             if expended_energy_per_hour != 0xFFFF:
                 self.expended_energy_per_hour = expended_energy_per_hour
-                logger.info(f"Expended Energy: {self.expended_energy_per_hour} kCal/hour")
+                logger.debug(f"Expended Energy: {self.expended_energy_per_hour} kCal/hour")
 
             expended_energy_per_minute = int(value[offset])
             offset += 1
             if expended_energy_per_minute != 0xFF:
                 self.expended_energy_per_minute = expended_energy_per_minute
-                logger.info(f"Expended Energy: {self.expended_energy_per_minute} kCal/min")
+                logger.debug(f"Expended Energy: {self.expended_energy_per_minute} kCal/min")
 
         if self.flag_heart_rate:
             self.heart_rate = int(value[offset])
             offset += 1
-            logger.info(f"Heart Rate: {self.heart_rate} bpm")
+            logger.debug(f"Heart Rate: {self.heart_rate} bpm")
 
         if self.flag_metabolic_equivalent:
             self.metabolic_equivalent = float(value[offset]) / 10.0
             offset += 1
-            logger.info(f"Metabolic Equivalent: {self.metabolic_equivalent} METS")
+            logger.debug(f"Metabolic Equivalent: {self.metabolic_equivalent} METS")
 
         if self.flag_elapsed_time:
             self.elapsed_time = int((value[offset+1] << 8) + value[offset])
             offset += 2
-            logger.info(f"Elapsed Time: {self.elapsed_time} seconds")
+            logger.debug(f"Elapsed Time: {self.elapsed_time} seconds")
 
         if self.flag_remaining_time:
             self.remaining_time = int((value[offset+1] << 8) + value[offset])
             offset += 2
-            logger.info(f"Remaining Time: {self.remaining_time} seconds")
+            logger.debug(f"Remaining Time: {self.remaining_time} seconds")
 
         if offset != len(value):
-            logger.error("ERROR: Payload was not parsed correctly")
+            logger.info("ERROR: Payload was not parsed correctly")
             return
         
     def publish_data(self):
         """Publish if data or log that there was no relevant data"""
 
-        if self.instantaneous_speed > 0:
+        if self.instantaneous_cadence > 0 or self.instantaneous_cadence > 0:
             self.idle = False
             self.publish()
         else:
-            if self.idle:
-                logger.info('Bike currently idle, no data published')
-            else:
+            if not self.idle:
                 self.publish()
                 self.idle = True
 
